@@ -1862,6 +1862,10 @@ async function sbReq(path, o) {
     const campo = /^lote_notas/.test(path) ? 'autor_email' : /^lotes/.test(path) ? 'creado_por_email' : null;
     if (campo && !o.body[campo]) o.body = Object.assign({}, o.body, { [campo]: autorActual() || null });
   }
+  // Toda edición o baja de un lote deja quién la hizo
+  if (o.method === 'PATCH' && /^lotes\?/.test(path) && o.body && typeof o.body === 'object') {
+    o.body = Object.assign({}, o.body, { actualizado_por: autorActual() || null });
+  }
   if (o.body !== undefined) h['Content-Type'] = 'application/json';
   if (o.prefer) h.Prefer = o.prefer;
   const r = await fetch(SB_URL + '/rest/v1/' + path, { method: o.method || 'GET', headers: h, body: o.body !== undefined ? JSON.stringify(o.body) : undefined });
@@ -1987,20 +1991,39 @@ function faltaTabla(e) {
   return e.message || String(e);
 }
 
-/* ── Quién carga: nombre guardado en este navegador (se usa como autor de lotes y notas) ── */
-function UserMenu({ sess, setSess }) {
-  const editar = function () {
-    const v = window.prompt('Tu nombre (queda como autor de lo que cargues en la cartera):', sess.email || '');
-    if (v === null) return;
-    const n = v.trim().slice(0, 120);
+/* ── Quién carga: nombre obligatorio, guardado en este navegador (autor de lotes, notas, escenarios y ediciones) ── */
+function nombreValido(n) { const p = String(n || '').trim().split(/\s+/).filter(function (x) { return x.length >= 2; }); return p.length >= 2; }
+function NombreModal({ actual, obligatorio, onOk, onCancel }) {
+  const [v, setV] = useState(actual || '');
+  const [err, setErr] = useState('');
+  const ok = function () {
+    const n = v.trim().replace(/\s+/g, ' ').slice(0, 120);
+    if (!nombreValido(n)) { setErr('Poné nombre y apellido.'); return; }
     try { localStorage.setItem('ac_nombre', n); } catch (e) { }
-    setSess(Object.assign({}, sess, { email: n }));
+    onOk(n);
   };
+  return <div className="modal-bg" onClick={function (e) { if (!obligatorio && e.target === e.currentTarget) onCancel(); }}>
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="nm-tit">
+      <h2 id="nm-tit" style={{ fontSize: 16, marginBottom: 4 }}>{obligatorio ? '¿Quién está usando la app?' : 'Cambiar tu nombre'}</h2>
+      <p className="small muted" style={{ marginBottom: 12 }}>Tu nombre queda registrado en todo lo que cargues o cambies en la cartera: lotes, notas, escenarios, cambios de estado y precio. Se guarda en este navegador.</p>
+      <label className="fld" style={{ marginBottom: 12 }}><span>Nombre y apellido</span><span className="row"><input value={v} autoFocus maxLength={120} style={{ fontFamily: 'var(--ff)' }}
+        onChange={function (e) { setV(e.target.value); setErr(''); }} onKeyDown={function (e) { if (e.key === 'Enter') ok(); }} placeholder="Ej.: Manuel Sagarraga" /></span></label>
+      {err && <div className="alert err" style={{ marginTop: 0, marginBottom: 10 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        {!obligatorio && <button type="button" className="btn" onClick={onCancel}>Cancelar</button>}
+        <button type="button" className="btn pri" onClick={ok}>{obligatorio ? 'Empezar' : 'Guardar'}</button>
+      </div>
+    </div>
+  </div>;
+}
+function UserMenu({ sess, setSess }) {
+  const [edit, setEdit] = useState(false);
   return <div className="umenu">
-    <button className="ubtn" onClick={editar} title="Cambiar el nombre con el que firmás">
+    <button className="ubtn" onClick={function () { setEdit(true); }} title="Cambiar el nombre con el que firmás">
       <span className="avatar">{(sess.email || '?').slice(0, 1).toUpperCase()}</span>
-      <span className="uname">{sess.email || 'Poné tu nombre'}</span>
+      <span className="uname">{sess.email || 'Sin nombre'}</span>
     </button>
+    {edit && <NombreModal actual={sess.email} onCancel={function () { setEdit(false); }} onOk={function (n) { setEdit(false); setSess(Object.assign({}, sess, { email: n })); }} />}
   </div>;
 }
 
@@ -2345,7 +2368,7 @@ function CarteraCard({ M, sess, lote, onLogin, onChange, onApply, cartErr, q, ma
   return <section className="card hero">
     <div className="card-h"><span>Cartera de lotes</span><EstadoTag k={lote.estado} /></div>
     <div className="card-b">
-      <div className="small muted" style={{ marginBottom: 10 }}>Guardado por {lote.creado_por_email || '—'} el {fecha(lote.created_at)} · actualizado {fechaHora(lote.updated_at)}</div>
+      <div className="small muted" style={{ marginBottom: 10 }}>Guardado por {lote.creado_por_email || '—'} el {fecha(lote.created_at)} · actualizado {fechaHora(lote.updated_at)}{lote.actualizado_por ? ' por ' + lote.actualizado_por : ''}</div>
       {cambios.length > 0 && <div className="alert">Desde el análisis del {fecha(snap.fecha)} cambió la norma: {cambios.join(' · ')}. <button className="btn" style={{ marginLeft: 6 }} onClick={actualizarAnalisis} disabled={busy === 'upd'}>Actualizar análisis</button></div>}
       {snap && snap.resultado && r && !r.error && Math.abs(snap.resultado.total - r.total) > 1 && cambios.length === 0 && <div className="alert info">Con los datos de hoy la cabida da {nf(r.total)} m²; en el análisis guardado ({fecha(snap.fecha)}) daba {nf(snap.resultado.total)} m². <button className="btn" style={{ marginLeft: 6 }} onClick={actualizarAnalisis} disabled={busy === 'upd'}>{busy === 'upd' ? 'Guardando…' : 'Guardar el análisis actual'}</button></div>}
       {f && <Fragment>
@@ -2527,7 +2550,7 @@ function CarteraTab({ sess, cartera, cartErr, empresas, onLogin, onOpen, onReloa
           'Unidades de venta': l.analisis && l.analisis.negocio ? (l.analisis.negocio.unidades || []).length : null,
           'Uso del suelo': a.uso || '', 'Patrimonio': a.app || (a.catalogado ? 'Catalogado' : ''), 'Etiquetas': (l.etiquetas || []).join(', '),
           'Escenarios': (l.escenarios || []).length, 'Notas': l._ult ? l._ult.cant : 0, 'Última nota': l._ult ? l._ult.ult.texto : '',
-          'Creado por': l.creado_por_email || '', 'Creado': l.created_at ? new Date(l.created_at) : null, 'Actualizado': l.updated_at ? new Date(l.updated_at) : null,
+          'Creado por': l.creado_por_email || '', 'Creado': l.created_at ? new Date(l.created_at) : null, 'Actualizado': l.updated_at ? new Date(l.updated_at) : null, 'Actualizado por': l.actualizado_por || '',
           'Link': base + '#' + Number(l.lat).toFixed(6) + ',' + Number(l.lon).toFixed(6)
         };
         return o;
@@ -2808,6 +2831,7 @@ function App() {
       {toast && <div className="alert ok" style={{ marginTop: 0 }}>{toast}</div>}
       <CarteraTab sess={sess} cartera={carteraVis} cartErr={cartErr} empresas={empresas} empCtx={ctx} onLogin={salir} onOpen={abrirDeCartera} onReload={loadCartera} locales={saved} onImportLocales={subirLocales} />
     </div></div>}
+    {!nombreValido(sess.email) && <NombreModal obligatorio actual={sess.email} onOk={function (n) { setSess(Object.assign({}, sess, { email: n })); }} />}
   </DigCtx.Provider>;
 }
 
