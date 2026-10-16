@@ -1,4 +1,8 @@
-# Análisis de Cabida · Córdoba
+# Análisis de Cabida
+
+Pantalla de inicio (`index.html`) con provincias y ciudades. Cada ciudad es una página independiente en su carpeta (`cordoba/index.html`, con sus datos en `cordoba/data/`). La cartera es un solo Supabase con la columna `ciudad`.
+
+**Sumar una ciudad:** crear `<ciudad>/index.html` (con `const CIUDAD = '<ciudad>'`) y agregarla en la lista `PROVINCIAS` del `index.html` de inicio. · Córdoba
 
 Herramienta web para analizar lotes de Córdoba capital: normativa urbana, cabida máxima en m² y cartera de lotes de Grupo ECIPSA.
 
@@ -15,8 +19,8 @@ Herramienta web para analizar lotes de Córdoba capital: normativa urbana, cabid
 
 | Archivo | Qué es |
 |---|---|
-| `index.html` | La herramienta entera (React 18 UMD + Babel standalone + Leaflet desde CDN, sin build). |
-| `data/digesto.json` | Índice de normas del Digesto municipal (número interno `Nro=`, PDF y marco normativo). |
+| `cordoba/index.html` | La herramienta entera (React 18 UMD + Babel standalone + Leaflet desde CDN, sin build). |
+| `cordoba/data/digesto.json` | Índice de normas del Digesto municipal (número interno `Nro=`, PDF y marco normativo). |
 | `sql/001_inicial.sql` | Esquema del Supabase: cartera de lotes, notas y permisos para la clave anon. Se puede correr dos veces. |
 | `.github/workflows/deploy.yml` | Publica en GitHub Pages en cada push a `main`. |
 
@@ -28,7 +32,7 @@ Herramienta web para analizar lotes de Córdoba capital: normativa urbana, cabid
 ## Puesta en marcha
 
 1. Supabase → **SQL Editor:** correr `sql/001_inicial.sql`.
-2. En `index.html`, completar `SB_URL` y `SB_KEY` (Project Settings → API → URL y clave **anon**). Nunca la `service_role`.
+2. En `cordoba/index.html`, completar `SB_URL` y `SB_KEY` (Project Settings → API → URL y clave **anon**). Nunca la `service_role`.
 3. Cada persona pone su nombre arriba a la derecha (queda en su navegador) y se usa como autor de lo que carga.
 
 **Recuperar un lote dado de baja (SQL Editor):**
@@ -40,5 +44,5 @@ update public.lotes set eliminado = false where id = '...';
 ## Reglas
 
 - Nada de datos de lotes ni de personas en el repo.
-- La clave que aparece en `index.html` es la pública (anon) de Supabase; la protección la dan las políticas RLS de `sql/001_inicial.sql`.
+- La clave que aparece en `cordoba/index.html` es la pública (anon) de Supabase; la protección la dan las políticas RLS de `sql/001_inicial.sql`.
 - Es una estimación preliminar: no reemplaza la visación ni el certificado de uso del suelo.

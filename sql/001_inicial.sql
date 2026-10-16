@@ -47,8 +47,12 @@ create table if not exists public.lotes (
   etiquetas text[] not null default '{}',
   analisis jsonb,
   escenarios jsonb not null default '[]'::jsonb,
-  eliminado boolean not null default false
+  eliminado boolean not null default false,
+  actualizado_por text check (char_length(actualizado_por) <= 120)
 );
+alter table public.lotes add column if not exists actualizado_por text check (char_length(actualizado_por) <= 120);
+alter table public.lotes add column if not exists ciudad text not null default 'cordoba' check (ciudad ~ '^[a-z0-9-]{2,40}$');
+create index if not exists lotes_ciudad_idx on public.lotes (ciudad);
 
 create table if not exists public.lote_notas (
   id uuid primary key default gen_random_uuid(),
@@ -63,7 +67,8 @@ create table if not exists public.lote_notas (
 
 create index if not exists lotes_empresa_idx on public.lotes (empresa);
 drop index if exists public.lotes_empresa_nomenclatura_uq;
-create unique index if not exists lotes_nomenclatura_activos_uq on public.lotes (empresa, nomenclatura) where nomenclatura is not null and not eliminado;
+drop index if exists public.lotes_nomenclatura_activos_uq;
+create unique index if not exists lotes_nomenclatura_ciudad_uq on public.lotes (empresa, ciudad, nomenclatura) where nomenclatura is not null and not eliminado;
 create index if not exists lote_notas_lote_idx on public.lote_notas (lote_id, created_at desc);
 create index if not exists lote_notas_empresa_idx on public.lote_notas (empresa);
 
