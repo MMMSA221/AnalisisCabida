@@ -11,6 +11,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Sesión única de las herramientas de Grupo ECIPSA (portal en https://mmmsa221.github.io/) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/sesion.js"></script>
+<script>if (window.ECI) ECI.exigir('cabida');</script>
 <style>
 :root{--bg:#F6F6F6;--bg1:#f1f3f5;--bg2:#e9ecef;--el:#fff;--c0:#28283D;--c1:#575756;--c2:#6f6f7a;--b0:#e2e5ea;--b1:#eef0f3;--ac:#B54E0B;--ac2:#9E4309;--acbg:rgba(251,117,32,.10);--ok:#10b981;--err:#ef4444;--warn:#f59e0b;--okbg:rgba(16,185,129,.1);--warnbg:rgba(245,158,11,.12);--errbg:rgba(239,68,68,.1);--floor:rgba(251,117,32,.22);--floor2:rgba(251,117,32,.07);--sh:0 1px 2px rgba(0,0,0,.04);--shm:0 2px 8px rgba(0,0,0,.06);--ff:'Open Sans',Arial,-apple-system,sans-serif;--ft:Gilroy,'Open Sans',Arial,sans-serif;--fm:'JetBrains Mono',monospace}
 @media(prefers-color-scheme:dark){:root{--ac:#FB7520;--ac2:#FF9A55;--bg:#1c1c2b;--bg1:#232336;--bg2:#2d2d45;--el:#28283D;--c0:#F6F6F6;--c1:#b9b9c6;--c2:#8d8da0;--b0:#3a3a55;--b1:#30304a;--acbg:rgba(251,117,32,.14);--floor:rgba(251,117,32,.26);--floor2:rgba(251,117,32,.08);--sh:0 1px 2px rgba(0,0,0,.2);--shm:0 2px 8px rgba(0,0,0,.3)}}
@@ -2628,10 +2632,11 @@ function OrdIndex({ onMapa }) {
 }
 
 /* ═══════ Cartera de lotes (Supabase "Analisis Cabida", una sola organización) ═══════
-   La sesión se guarda con claves propias (ac_*) para no pisar la de Cómputo, que vive en el mismo dominio.
-   RLS (sql/cartera.sql): cualquier usuario autenticado lee y escribe todo; borra el autor o un admin (app_metadata.role = 'admin'). */
-const SB_URL = 'https://jujvdutkbpvgxtdedcdi.supabase.co';
-const SB_KEY = 'sb_publishable_G8NKgiCccDQOw2NQ6faFLA_Le1jnJdu';
+   Sin login propio: usa la sesión única del portal (/sesion.js).
+   RLS (sql/cartera.sql): lee y escribe todo quien tenga 'cabida' en sus herramientas; borra el autor o un admin (app_metadata.rol = 'admin'). */
+// Proyecto de Supabase de Grupo ECIPSA: se toma de /sesion.js (el mismo que usa el portal)
+const SB_URL = (window.ECI && ECI.SB_URL) || 'https://xwprtfxtrwcyrzdiamvd.supabase.co';
+const SB_KEY = (window.ECI && ECI.SB_KEY) || 'sb_publishable_HOL_2wM5kz2tPr7t8oTJWQ_X2pRapkh';
 const ESTADOS = [
   ['nuevo', 'Nuevo', '#8b92a5'],
   ['en_analisis', 'En análisis', '#2f6fd6'],
@@ -2649,39 +2654,15 @@ function jwtPayload(t) {
     return JSON.parse(decodeURIComponent(escape(atob(b))));
   } catch (e) { return null; }
 }
-function sbGuardar(d) {
-  try {
-    localStorage.setItem('ac_access_token', d.access_token);
-    localStorage.setItem('ac_refresh_token', d.refresh_token || '');
-    if (d.user) localStorage.setItem('ac_user', JSON.stringify(d.user));
-  } catch (e) { }
-}
-async function sbToken() {
-  let at = '', rt = '';
-  try { at = localStorage.getItem('ac_access_token') || ''; rt = localStorage.getItem('ac_refresh_token') || ''; } catch (e) { return null; }
-  const p = at ? jwtPayload(at) : null;
-  if (p && p.exp * 1000 > Date.now() + 60000) return at;
-  if (!rt) return null;
-  try {
-    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SB_KEY }, body: JSON.stringify({ refresh_token: rt }) });
-    if (!r.ok) return null;
-    const d = await r.json(); sbGuardar(d); return d.access_token;
-  } catch (e) { return null; }
-}
-async function sbLogin(email, pass) {
-  const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SB_KEY }, body: JSON.stringify({ email: email, password: pass }) });
-  const d = await r.json().catch(function () { return {}; });
-  if (!r.ok) {
-    const m = String(d.error_description || d.msg || d.error || '').toLowerCase();
-    throw new Error(m.indexOf('invalid') >= 0 || m.indexOf('credentials') >= 0 ? 'Email o contraseña incorrectos.' : (d.error_description || d.msg || 'No se pudo ingresar.'));
-  }
-  sbGuardar(d);
-  return d.access_token;
-}
-function sbSalir() { try { ['ac_access_token', 'ac_refresh_token', 'ac_user'].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) { } }
+/* La sesión la abre el portal y la maneja /sesion.js (supabase-js, renovación automática).
+   ECI.exigir('cabida') ya validó que haya sesión y que el usuario tenga la herramienta asignada. */
+async function sbToken() { try { return window.ECI ? await ECI.token() : null; } catch (e) { return null; } }
+function irAlPortal() { try { location.href = '/'; } catch (e) { } }
+function salirPortal() { if (window.ECI) ECI.salir(); else irAlPortal(); }
 function sbWho(tok) {
   const p = jwtPayload(tok) || {}; const am = p.app_metadata || {};
-  return { email: p.email || '', admin: am.role === 'admin', uid: p.sub || '' };
+  // Mismos datos que ECI.usuario: nombre y rol vienen del app_metadata que carga el administrador del portal
+  return { email: p.email || '', nombre: am.nombre || p.email || '', admin: am.rol === 'admin' || am.role === 'admin', uid: p.sub || '' };
 }
 // Con RLS, un DELETE no permitido no da error: devuelve 0 filas. Se pide la fila borrada para poder avisar.
 async function borrarLote(lote) {
@@ -2789,31 +2770,6 @@ function EstadoTag({ k }) {
   return <span className="tag" style={{ background: e[2] + '22', color: e[2] }}><i className="dot" style={{ background: e[2] }}></i>{e[1]}</span>;
 }
 
-function LoginBox({ onDone, onCancel }) {
-  const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  const go = async function (e) {
-    e.preventDefault(); setErr(''); setBusy(true);
-    try { const t = await sbLogin(email.trim(), pass); onDone(sbWho(t)); }
-    catch (x) { setErr(x.message); setBusy(false); }
-  };
-  return <div className="modal-bg" onClick={function (e) { if (e.target === e.currentTarget) onCancel(); }}>
-    <form className="modal" onSubmit={go}>
-      <h2 style={{ fontSize: 16, marginBottom: 4 }}>Ingresar a la cartera</h2>
-      <p className="small muted" style={{ marginBottom: 12 }}>Con el usuario que te dio el administrador. No hay registro público.</p>
-      <label className="fld" style={{ marginBottom: 8 }}><span>Email</span><span className="row"><input type="email" value={email} onChange={function (e) { setEmail(e.target.value); }} autoFocus required autoComplete="username" /></span></label>
-      <label className="fld" style={{ marginBottom: 12 }}><span>Contraseña</span><span className="row"><input type="password" value={pass} onChange={function (e) { setPass(e.target.value); }} required autoComplete="current-password" /></span></label>
-      {err && <div className="alert err" style={{ marginBottom: 10 }}>{err}</div>}
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button type="button" className="btn" onClick={onCancel}>Cancelar</button>
-        <button type="submit" className="btn pri" disabled={busy}>{busy ? 'Ingresando…' : 'Ingresar'}</button>
-      </div>
-    </form>
-  </div>;
-}
-
 function formDesdeLote(l) {
   return { nombre: l.nombre || '', estado: l.estado, precio: l.precio != null ? String(l.precio).replace('.', ',') : '', moneda: l.moneda || 'USD', tipo_cambio: l.tipo_cambio != null ? String(l.tipo_cambio).replace('.', ',') : '', eficiencia: String(Math.round((Number(l.eficiencia) || 0.8) * 100)), etiquetas: (l.etiquetas || []).join(', ') };
 }
@@ -2853,45 +2809,25 @@ function faltaTabla(e) {
 }
 
 /* ── Pantalla de ingreso ── */
-function LoginScreen({ onDone }) {
-  const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  const go = async function (e) {
-    e.preventDefault(); setErr(''); setBusy(true);
-    try { const t = await sbLogin(email.trim(), pass); onDone(sbWho(t)); }
-    catch (x) { setErr(x.message); setBusy(false); }
-  };
+// Sin sesión del portal: no hay login propio, se manda a ingresar por el portal
+function SinSesion({ onReintentar }) {
   return <div className="login-page">
     <div className="login-brand">
-      <div className="login-logo">AC</div>
       <h1>Análisis de Cabida</h1>
-      <p className="login-sub">Córdoba · Salta</p>
-      <ul>
-        <li>La normativa oficial de cada lote al instante: ocupación, uso y fraccionamiento del suelo, patrimonio, loteos y ordenanzas.</li>
-        <li>Cabida máxima en m² con la geometría real del lote y las reglas vigentes de la Ord. 8256.</li>
-        <li>Interior provincial: catastro de cualquier localidad y zonificación de 41 ciudades más desde la capa provincial de IDECOR.</li>
-        <li>Salta: catastro provincial de IDESA y, en Salta capital, distritos e indicadores del CPUA 2025.</li>
-        <li>Cartera de lotes del equipo con precio, incidencia, notas y escenarios.</li>
-      </ul>
-      <p className="small">Datos de IDECOR y la Municipalidad de Córdoba, consultados en vivo.</p>
+      <p className="login-sub">Córdoba capital · Salta capital</p>
+      <p className="small">Normativa oficial y cabida máxima por lote, con datos consultados en vivo.</p>
     </div>
     <div className="login-side">
-      <form className="login-card" onSubmit={go}>
-        <h2>Ingresar</h2>
-        <p className="small muted" style={{ marginBottom: 14 }}>Con el usuario que te dio el administrador.</p>
-        <label className="fld" style={{ marginBottom: 10 }}><span>Email</span><span className="row"><input type="email" value={email} onChange={function (e) { setEmail(e.target.value); }} autoFocus required autoComplete="username" /></span></label>
-        <label className="fld" style={{ marginBottom: 14 }}><span>Contraseña</span><span className="row"><input type="password" value={pass} onChange={function (e) { setPass(e.target.value); }} required autoComplete="current-password" /></span></label>
-        {err && <div className="alert err" style={{ marginTop: 0, marginBottom: 12 }}>{err}</div>}
-        <button type="submit" className="btn pri" disabled={busy} style={{ width: '100%', padding: '9px 12px', fontSize: 13 }}>{busy ? 'Ingresando…' : 'Ingresar'}</button>
-        <p className="small muted" style={{ marginTop: 14 }}>¿No tenés usuario? Pedíselo al administrador.</p>
-      </form>
+      <div className="login-card">
+        <h2>Ingresá desde el portal</h2>
+        <p className="small muted" style={{ marginBottom: 14 }}>La herramienta usa la sesión del portal. Iniciá sesión ahí y volvé a abrirla.</p>
+         <a className="btn pri" href={'/?volver=' + encodeURIComponent(location.pathname)} style={{ width: '100%', padding: '9px 12px', fontSize: 13 }}>Ir al portal</a>
+        <button className="btn" style={{ width: '100%', marginTop: 8 }} onClick={onReintentar}>Ya ingresé, volver a intentar</button>
+      </div>
     </div>
   </div>;
 }
 
-/* ── Elección de provincia: lo primero después de ingresar ── */
 // Parcela armada con el polígono que dibuja el usuario cuando el catastro no trae el lote
 function parcelaDibujada(geom, city) {
   return { type: 'Feature', geometry: geom, properties: { Nomenclatura: '', Nro_Cuenta: '', Superficie_Tierra_Urbana: null, Estado: '', desig_oficial: '', localidad: nombreCiudad(city), _nom: 'Lote dibujado', _fuente: 'Dibujado por el usuario' } };
@@ -2938,15 +2874,16 @@ function UserMenu({ sess, onSalir }) {
   return <div className="umenu" ref={ref}>
     <button className="ubtn" onClick={function () { setOpen(!open); }} aria-expanded={open} title={sess.email}>
       <span className="avatar">{(sess.email || '?').slice(0, 1).toUpperCase()}</span>
-      <span className="uname">{sess.admin ? 'Admin' : (sess.email || '').split('@')[0]}</span>
+      <span className="uname">{sess.nombre || sess.email}</span>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
     </button>
     {open && <div className="udrop">
       <div style={{ fontWeight: 700, fontSize: 12.5, wordBreak: 'break-all' }}>{sess.email}</div>
       <div className="small muted" style={{ marginTop: 2 }}>{sess.admin ? 'Administrador · puede borrar lotes de otros usuarios' : 'Usuario del equipo'}</div>
-      <button className="btn" style={{ width: '100%', marginTop: 12 }} onClick={function () { setOpen(false); onSalir(); }}>
+      <a className="btn" style={{ width: '100%', marginTop: 12 }} href="/">Ver todas las herramientas</a>
+      <button className="btn" style={{ width: '100%', marginTop: 12 }} onClick={function () { setOpen(false); salirPortal(); }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
-        Cerrar sesión
+        Salir
       </button>
     </div>}
   </div>;
@@ -3585,7 +3522,10 @@ function App() {
     reqId.current++; setM(null); setErr(null); setRetry(null); setDraw(false); setDrawPts([]); setOpts(null); setOverlay(null); setBusy(false); setNormaSel(null); setQ('');
     try { history.replaceState(null, '', location.pathname); } catch (e) { }
   };
-  useEffect(function () { sbToken().then(function (t) { if (t) setSess(sbWho(t)); setAuthOk(true); }); }, []);
+  useEffect(function () {
+    const ok = function () { sbToken().then(function (t) { if (t) setSess(sbWho(t)); setAuthOk(true); }); };
+    if (window.ECI) ECI.listo.then(ok); else ok();
+  }, []);
   const loadCartera = useCallback(async function () {
     try { const rows = await sbReq('lotes?select=*&order=updated_at.desc'); setCartera(rows || []); setCartErr(null); }
     catch (e) { if (e.auth) { setSess(null); setCartera(null); } else setCartErr(faltaTabla(e)); }
@@ -3611,7 +3551,8 @@ function App() {
     const a = loteActual.analisis;
     if (a && a.inputs) { setNormaSel(a.normaSel != null ? a.normaSel : null); setPreset({ v: a.inputs, t: Date.now() }); }
   }, [M, loteActual]);
-  const salir = function () { sbSalir(); setSess(null); setCartera(null); setTab('lote'); };
+  // Sesión vencida o cerrada en el portal: se vuelve a leer; si no hay, se pide ingresar por el portal
+  const salir = function () { sbToken().then(function (t) { setSess(t ? sbWho(t) : null); if (!t) setCartera(null); }); };
   const aplicarEscenario = function (e) {
     setNormaSel(e.normaSel != null ? e.normaSel : null);
     setPreset({ v: e.inputs, t: Date.now() });
@@ -3715,7 +3656,7 @@ function App() {
   };
   const vis = function (t) { return { display: tab === t ? 'block' : 'none' }; };
   if (!authOk) return <div className="ld" style={{ margin: 'auto' }}><div className="sp" /><span>Cargando…</span></div>;
-  if (!sess) return <LoginScreen onDone={function (w) { setSess(w); }} />;
+  if (!sess) return <SinSesion onReintentar={salir} />;
   if (!city || elegir) {
     const volver = city ? function () { setElegir(false); } : null;
     return <CityPick onPick={setCity} onCancel={volver} actual={city} />;
