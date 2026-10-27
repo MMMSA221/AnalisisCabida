@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Análisis de Cabida</title>
 <meta name="description" content="Normativa urbana y cabida máxima por lote en Córdoba capital y Salta capital, con datos oficiales consultados en vivo."/>
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Urbanist:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M6 3h20l3 3v20l-3 3H6l-3-3V6z' fill='%2328283D'/><path d='M6 3h10v13H3V6z' fill='%23FB7520'/></svg>"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -218,6 +220,217 @@ table.t.neg td{padding:2px 4px}
   .print-only{display:block!important}
 }
 .print-only{display:none}
+/* ═══════════════════════════════════════════════════════════════════
+   Capa visual ECIPSA · misma familia que el portal de herramientas
+   Idea: la herramienta es una lámina del legajo de obra. El navy es la línea del plano;
+   el naranja marca solo lo que se está por tocar: la parcela en el mapa y la acción principal.
+   Urbanist reemplaza a Gilroy en web (como en el portal); Open Sans para el texto.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --navy:#28283D;--naranja:#FB7520;--naranja-osc:#C9530A;
+  --bg:#F6F6F6;--bg1:#EFEFF2;--bg2:#E7E7EC;--el:#FFFFFF;
+  --c0:#28283D;--c1:#575756;--c2:#6f6f7a;
+  --b0:rgba(40,40,61,.16);--b1:rgba(40,40,61,.09);--bf:rgba(40,40,61,.55);
+  --ac:#C2560E;--ac2:#A8480A;--acbg:rgba(251,117,32,.10);
+  --ok:#1d6b34;--okbg:rgba(29,107,52,.09);--err:#a3261f;--errbg:rgba(163,38,31,.08);--warn:#9a5b00;--warnbg:rgba(154,91,0,.08);
+  --floor:rgba(251,117,32,.22);--floor2:rgba(251,117,32,.07);
+  --sh:none;--shm:0 8px 24px rgba(40,40,61,.12);
+  --ff:'Open Sans',Arial,sans-serif;--ft:'Gilroy','Urbanist',Arial,sans-serif;--fm:'Open Sans',Arial,sans-serif;
+  --r:6px;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1d1d2c;--bg1:#232335;--bg2:#2b2b40;--el:#262638;--c0:#F2F2F5;--c1:#c9c9d3;--c2:#9a9aab;
+  --b0:rgba(242,242,245,.14);--b1:rgba(242,242,245,.08);--bf:rgba(242,242,245,.5);
+  --ac:#FB7520;--ac2:#FF9A55;--acbg:rgba(251,117,32,.14);--ok:#7fd492;--okbg:rgba(127,212,146,.1);--err:#ff9b97;--errbg:rgba(255,155,151,.1);--warn:#ffb86b;--warnbg:rgba(255,184,107,.1);
+  --floor:rgba(251,117,32,.26);--floor2:rgba(251,117,32,.08);--shm:0 8px 24px rgba(0,0,0,.4)}}
+:root[data-theme="dark"]{
+  --bg:#1d1d2c;--bg1:#232335;--bg2:#2b2b40;--el:#262638;--c0:#F2F2F5;--c1:#c9c9d3;--c2:#9a9aab;
+  --b0:rgba(242,242,245,.14);--b1:rgba(242,242,245,.08);--bf:rgba(242,242,245,.5);
+  --ac:#FB7520;--ac2:#FF9A55;--acbg:rgba(251,117,32,.14);--ok:#7fd492;--okbg:rgba(127,212,146,.1);--err:#ff9b97;--errbg:rgba(255,155,151,.1);--warn:#ffb86b;--warnbg:rgba(255,184,107,.1);
+  --floor:rgba(251,117,32,.26);--floor2:rgba(251,117,32,.08);--shm:0 8px 24px rgba(0,0,0,.4)}
+body{font-size:14px;line-height:1.55;color:var(--c1)}
+:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--naranja);outline-offset:2px;border-radius:2px}
+h1,h2,h3{font-family:var(--ft);color:var(--c0)}
+.mono{font-family:var(--ff);font-variant-numeric:tabular-nums}
+
+/* Barra: marca, herramienta y ciudad, secciones */
+.hdr,.eci-barra{height:auto;min-height:60px;background:var(--el);border-bottom:1px solid var(--b0);padding:0 20px;gap:20px;position:relative;z-index:1100}
+.eci-barra-in{display:flex;align-items:center;gap:16px;min-height:60px}
+.eci-mark{display:inline-flex;flex-direction:column;line-height:1;text-decoration:none;color:var(--navy);flex:none}
+:root[data-theme="dark"] .eci-mark{color:#F2F2F5}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .eci-mark{color:#F2F2F5}}
+.eci-mark .g{font-family:Arial,sans-serif;font-size:9.5px;letter-spacing:.42em;margin-bottom:2px}
+.eci-mark .e{font-family:var(--ft);font-weight:800;font-size:21px;letter-spacing:.01em}
+.eci-mark .e b{color:var(--naranja);font-weight:800}
+.ruta{display:flex;align-items:center;gap:10px;padding-left:20px;border-left:1px solid var(--b0);min-width:0}
+.ruta-h{font-family:var(--ft);font-weight:700;font-size:17px;color:var(--c0);white-space:nowrap}
+.city-chip{font-family:var(--ff);font-size:13px;font-weight:600;color:var(--c1);border:1px solid var(--b0);border-radius:999px;padding:4px 10px 4px 12px;background:transparent;gap:6px}
+.city-chip:hover{border-color:var(--bf);color:var(--c0)}
+.seg{background:transparent;padding:0;gap:4px;border-radius:0;align-self:stretch;margin-left:8px}
+.seg button{font-family:var(--ft);font-size:15px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--c2);padding:0 10px;border-radius:0;border-bottom:2px solid transparent;margin-bottom:-1px;min-height:60px}
+.seg button:hover{color:var(--c0)}
+.seg button.on{background:transparent;color:var(--c0);box-shadow:none;border-bottom-color:var(--naranja)}
+.seg .cnt{display:inline-block;margin-left:6px;font-family:var(--ff);font-size:11px;font-weight:700;color:var(--c1);background:var(--bg1);border-radius:999px;padding:1px 7px;vertical-align:2px}
+.acts{gap:8px}
+.btn-i{width:36px;height:36px;border-radius:var(--r);color:var(--c1);display:inline-flex;align-items:center;justify-content:center}
+.ubtn{border-radius:999px;padding:3px 10px 3px 3px;font-size:13px;font-weight:600;color:var(--c0);border-color:var(--b0)}
+.avatar{border-radius:50%;width:28px;height:28px;background:var(--navy);color:#fff;font-family:var(--ft);font-weight:700;font-size:13px}
+.udrop{border-radius:var(--r);padding:16px}
+
+/* Botones */
+.btn{font-family:var(--ff);font-size:13px;font-weight:600;min-height:36px;padding:0 14px;border-radius:var(--r);border:1px solid var(--bf);background:transparent;color:var(--c0)}
+.btn:hover{background:transparent;border-color:var(--c0);color:var(--c0)}
+.btn.pri{background:var(--naranja);border-color:var(--naranja);color:#fff}
+.btn.pri:hover{background:var(--naranja-osc);border-color:var(--naranja-osc);color:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.pri{color:#fff}}
+:root[data-theme="dark"] .btn.pri{color:#fff}
+.pill{font-family:var(--ff);font-size:12.5px;font-weight:600;border-radius:999px;padding:5px 12px;border-color:var(--b0);background:transparent;color:var(--c1)}
+.pill.on{background:var(--navy);border-color:var(--navy);color:#fff}
+
+/* Buscador */
+.sbar{background:var(--el);border-bottom:1px solid var(--b0);padding:10px 20px;gap:10px}
+.sin{min-height:40px;border-radius:var(--r);border:1px solid var(--bf);font-size:14px;padding:0 12px;background:var(--el)}
+.sin:focus{outline:none;border-color:var(--naranja);box-shadow:0 0 0 3px rgba(251,117,32,.2)}
+.shint{font-size:12.5px;color:var(--c2)}
+.sres{border-radius:var(--r);border-color:var(--b0);box-shadow:var(--shm);left:20px}
+.sres button{font-size:13.5px;padding:10px 14px}
+
+/* Panel y láminas */
+.main{grid-template-columns:minmax(0,1fr) minmax(440px,620px)}
+.panel{padding:20px 20px 48px;background:var(--bg)}
+.card{border-radius:var(--r);border:1px solid var(--b0);margin-bottom:16px;box-shadow:none}
+.card-h{padding:14px 18px 10px;border-bottom:1px solid var(--b1);text-transform:none;letter-spacing:0;font-family:var(--ft);font-size:16px;font-weight:700;color:var(--c0);align-items:baseline}
+.card-h .src{font-family:var(--ff);font-size:12px;font-weight:400;color:var(--c2);text-align:right}
+.card-b{padding:14px 18px 16px}
+.card.hero{border-top:2px solid var(--navy)}
+:root[data-theme="dark"] .card.hero{border-top-color:var(--c0)}
+.kv{font-size:13.5px;gap:6px 16px}
+.kv dt{color:var(--c2)}.kv dd{color:var(--c0)}
+.title-lote{font-family:var(--ft);font-weight:800;font-size:22px;letter-spacing:-.01em;color:var(--c0)}
+.sub{font-size:13px;color:var(--c1)}
+.small{font-size:12.5px}
+.lbl,h3.lbl{font-family:var(--ff);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--c2)}
+.tag,.bytag,.niv{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px}
+.tag-warn{color:var(--warn)}
+.alert{border-radius:0 var(--r) var(--r) 0;font-size:13.5px;padding:10px 12px;color:var(--c0);border-left-width:3px}
+.alert.info{border-color:var(--navy);background:var(--bg1)}
+:root[data-theme="dark"] .alert.info{border-color:var(--c2)}
+ul.refs{font-size:13.5px;gap:8px}
+ul.refs li{border-left:2px solid var(--b0);padding-left:12px}
+details.more summary{color:var(--c0);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--bf);font-weight:600;font-size:13px}
+
+/* Números: Urbanist para la cifra que importa, Open Sans con cifras tabulares en tablas */
+.big{font-family:var(--ft);font-weight:800;letter-spacing:-.02em;color:var(--c0)}
+.big small{font-family:var(--ff);font-weight:600}
+.metric .v,.stat .v{font-family:var(--ft);font-weight:700;font-size:18px;color:var(--c0)}
+.metric .d,.stat .d{font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--c2)}
+table.t{font-size:13px}
+table.t th{font-family:var(--ff);font-size:12px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--c2);background:transparent;border-bottom:1px solid var(--bf)}
+table.t td{font-family:var(--ff);font-variant-numeric:tabular-nums;border-bottom-color:var(--b1);color:var(--c0)}
+table.t tfoot td{background:transparent;border-top:1px solid var(--bf)}
+.tw,.corte{border-radius:var(--r);border-color:var(--b0)}
+
+/* Campos */
+.fld{font-size:12.5px;font-weight:600;color:var(--c1);gap:4px}
+.fld .row{border-radius:var(--r);border-color:var(--bf);background:var(--el);min-height:38px}
+.fld .row:focus-within{border-color:var(--naranja);box-shadow:0 0 0 3px rgba(251,117,32,.2)}
+.fld input,.fld select{font-family:var(--ff);font-size:14px;font-variant-numeric:tabular-nums;padding:6px 10px}
+.fld input:focus,.fld select:focus{outline:none}
+.fld .u{font-family:var(--ff);font-size:12px;border-left-color:var(--b0)}
+.fld.man .row{border-color:var(--warn);border-style:dashed}
+textarea.note{border-radius:var(--r);border-color:var(--bf);background:var(--el);font-size:14px}
+
+/* Rótulo del lote: el resumen, como el rótulo de una lámina */
+.rotulo-lote{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.35fr;background:var(--el);border:1px solid var(--bf);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
+.rc{padding:10px 14px 12px;border-left:1px solid var(--b0);display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left;font:inherit;color:inherit;background:transparent;border-top:0;border-right:0;border-bottom:0}
+.rc:first-child{border-left:0}
+.rc span{font-size:12px;color:var(--c2)}
+.rc b{font-family:var(--ft);font-weight:700;font-size:17px;line-height:1.2;color:var(--c0);overflow-wrap:anywhere}
+.rc small{font-size:12px;color:var(--c2);overflow-wrap:anywhere}
+.rc .sw{display:inline-block;width:10px;height:10px;background:var(--naranja);margin-right:7px;vertical-align:1px}
+.rc-cab{cursor:pointer;background:var(--bg1)}
+.rc-cab:hover{background:var(--acbg)}
+.rc-cab .num{font-weight:800;font-size:30px;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.rc-cab .num em{font-style:normal;font-family:var(--ff);font-size:14px;font-weight:600;color:var(--c1);letter-spacing:0}
+.rc-cab .num.sin{color:var(--c2)}
+@media(max-width:1180px){.rotulo-lote{grid-template-columns:1fr 1fr}.rc:nth-child(3){border-left:0}.rc:nth-child(n+3){border-top:1px solid var(--b0)}}
+
+/* Pantalla inicial vacía */
+.empty{text-align:left;padding:24px 22px}
+.empty h2{font-family:var(--ft);font-size:24px;font-weight:800;text-transform:none;letter-spacing:-.01em}
+.steps{margin:16px 0 0;max-width:none;font-size:14px;gap:10px}
+.steps b{background:transparent;color:var(--c0);border:1.5px solid var(--bf);border-radius:50%;width:24px;height:24px;font-family:var(--ft);font-weight:700;font-size:13px}
+.sp{border-top-color:var(--naranja)}
+
+/* Selector de ciudad: índice de láminas, como el portal */
+.city-page{padding:0;background:var(--bg)}
+.city-in{max-width:none}
+.city-in .eci-barra{padding:0}
+.city-in .eci-barra-in{max-width:1180px;margin:0 auto;padding:0 24px}
+.city-hoja{max-width:1180px;margin:0 auto;padding:56px 24px 48px}
+.city-hoja h1{font-family:var(--ft);font-weight:800;font-size:clamp(34px,5vw,56px);line-height:1.02;letter-spacing:-.02em;color:var(--c0);margin:0 0 12px}
+.city-hoja .bajada{font-size:17px;max-width:52ch;margin:0 0 36px;color:var(--c1)}
+.indice{list-style:none;margin:0;padding:0;border-top:2px solid var(--c0);max-width:900px}
+.lamina{border-bottom:1px solid var(--b0)}
+.lamina button{width:100%;display:grid;grid-template-columns:64px minmax(0,1fr) auto;grid-template-areas:'cod tit abrir' 'cod desc abrir';gap:4px 20px;align-items:center;padding:22px 4px;background:none;border:0;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.lamina .cod{grid-area:cod;font-family:var(--ft);font-weight:800;font-size:44px;line-height:1;color:var(--c0)}
+.lamina .tit{grid-area:tit;font-family:var(--ft);font-weight:700;font-size:23px;line-height:1.2;color:var(--c0)}
+.lamina .desc{grid-area:desc;font-size:15px;max-width:64ch;color:var(--c1)}
+.lamina .det{display:block;font-size:13px;color:var(--c2);margin-top:4px}
+.lamina .abrir{grid-area:abrir;font-weight:600;font-size:14px;color:var(--c0);border:1px solid var(--bf);border-radius:var(--r);padding:10px 16px;white-space:nowrap}
+.lamina button:hover .cod,.lamina button:focus-visible .cod,.lamina.activa .cod{color:var(--naranja)}
+.lamina button:hover .abrir,.lamina button:focus-visible .abrir{background:var(--naranja);border-color:var(--naranja);color:#fff}
+@media(max-width:640px){
+  .lamina button{grid-template-columns:40px minmax(0,1fr);grid-template-areas:'cod tit' 'cod desc' '. abrir';padding:18px 0;align-items:start}
+  .lamina .cod{font-size:30px}.lamina .abrir{justify-self:start;margin-top:10px}
+  .city-hoja{padding:32px 16px 40px}
+}
+
+/* Ingreso por el portal */
+.login-page{grid-template-columns:1fr 1fr;background:var(--bg)}
+.login-brand{background:var(--navy);border-right:0;padding:56px 48px}
+.login-brand h1{font-family:var(--ft);font-weight:800;font-size:40px;letter-spacing:-.02em;color:#fff}
+.login-sub{text-transform:none;letter-spacing:0;font-size:15px;color:rgba(255,255,255,.75)}
+.login-card{border-radius:var(--r);border-color:var(--b0);padding:28px}
+.login-card h2{font-family:var(--ft);font-weight:800;font-size:24px;margin-bottom:6px}
+.login-card .btn{min-height:44px;font-size:15px}
+
+.page{padding:24px 24px 48px}
+.page h1.title-lote{font-size:28px}
+.modal{border-radius:var(--r)}
+.leaflet-container{background:var(--bg2)}
+.leaflet-bar a,.leaflet-control-layers{border-radius:var(--r)!important}
+.leaflet-tooltip.calle{border-color:var(--navy);font-family:var(--ff)}
+
+@media(max-width:900px){
+  .hdr{padding:0 16px;gap:12px}
+  .ruta{padding-left:12px;gap:8px}.ruta-h{display:none}
+  .seg{order:10;flex:1 1 100%;margin:0 -16px;padding:0 8px;border-top:1px solid var(--b1);align-self:auto}
+  .seg button{min-height:44px;font-size:14px}
+  .panel{padding:16px}
+  .sbar{padding:10px 16px}
+  .btn{min-height:44px}
+  .login-page{grid-template-columns:1fr}
+}
+@media(max-width:520px){.rc-cab .num{font-size:26px}}
+/* Los niveles eran para el interior provincial: con dos ciudades no aportan */
+.niv{display:none!important}
+ol.ords{list-style:none;margin:8px 0 0;padding:0;border-top:2px solid var(--c0);max-width:980px}
+ol.ords li{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:4px 20px;align-items:center;padding:14px 4px;border-bottom:1px solid var(--b0)}
+ol.ords .n{font-family:var(--ft);font-weight:700;font-size:17px;color:var(--c0)}
+ol.ords .t{color:var(--c0);font-size:15px}
+ol.ords .f{display:block;font-size:12.5px;color:var(--c2)}
+ol.ords .sinlink{font-size:12.5px;color:var(--c2)}
+@media(max-width:640px){ol.ords li{grid-template-columns:1fr}ol.ords .btn{justify-self:start}}
+@media(max-width:900px){.hdr{padding-top:6px}}
+:root[data-theme="dark"] .avatar{background:var(--bg2)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .avatar{background:var(--bg2)}}
+@media(max-width:900px){
+  .hdr .seg{margin:0 -16px!important;padding:0 6px;justify-content:space-between}
+  .hdr .seg button{padding:0 8px;font-size:14px;flex:0 0 auto;min-height:44px}
+  .shint{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -1382,22 +1595,26 @@ const CPUA_ORD = 'CPUA 2025 (Ord. 16.486)';
 const COLARQ = 'https://www.colarqsalta.org.ar/public/descargas/normativas/edilicias/';
 const SALTA_ORDS = [
   { k: 'cpua', n: 'Ord. 16.486/25', t: 'Código de Planeamiento Urbano Ambiental II (CPUA II)', u: 'https://municipalidadsalta.gob.ar/planificacion-territorial-y-catastro/codigo-planeamiento-urbano/', f: 'Municipalidad de Salta' },
-  { k: 'planos', n: 'Planos CPUA II 2025', t: 'Planos del código', u: 'https://drive.google.com/drive/folders/1wp6RsJoIUPYsiW0iukE33EZv8ulE7ODV', f: 'Colegio de Arquitectos de Salta' },
+  { k: 'planos', n: 'Planos CPUA II', t: 'Planos del código, edición 2025', u: 'https://drive.google.com/drive/folders/1wp6RsJoIUPYsiW0iukE33EZv8ulE7ODV', f: 'Colegio de Arquitectos de Salta' },
   { k: 'ce', n: 'Ord. 16.487/25', t: 'Código de Edificación', u: COLARQ + 'CODIGO-DE-EDIFICACION-2025-VERSION-PARA-EL-USO.pdf', f: 'Colegio de Arquitectos de Salta' },
-  { k: 'prac', n: 'PRAC', t: 'Plan Regulador de Área Centro · normativa, revisión 1', u: COLARQ + '5.2.4.-PRAC-Normativa-REVISION-1.pdf', f: 'Colegio de Arquitectos de Salta' },
+  { k: 'prac', n: 'PRAC', t: 'Plan Regulador de Área Centro, normativa revisión 1', u: COLARQ + '5.2.4.-PRAC-Normativa-REVISION-1.pdf', f: 'Colegio de Arquitectos de Salta' },
   { k: 'belgrano', n: 'Ord. 14.195', t: 'Corredor Av. Belgrano', u: COLARQ + '6.Ord-14195-Corredor-Belgrano.pdf', f: 'Colegio de Arquitectos de Salta' },
   { k: 'sanluis', n: 'Ord. 16.329/24', t: 'San Luis', u: COLARQ + 'ORDENANZA%2016329_24.pdf', f: 'Colegio de Arquitectos de Salta' },
-  { k: 'acceso', n: 'Ord. 16.330/24', t: 'Convenio Urbanístico Acceso Este', u: null, f: 'Sin enlace publicado' },
+  { k: 'acceso', n: 'Ord. 16.330/24', t: 'Convenio Urbanístico Acceso Este', u: null, f: 'Municipalidad de Salta' },
   { k: 'incentivo', n: 'Ord. 16.411', t: 'Incentivo a la construcción', u: COLARQ + 'Ord%2016.411%20completa.pdf', f: 'Colegio de Arquitectos de Salta' },
-  { k: 'parques', n: 'Ord. 15.675', t: 'Parques (distritos PA y PP)', u: null, f: 'Citada en el CPUA; sin enlace publicado' }
+  { k: 'parques', n: 'Ord. 15.675', t: 'Parques (distritos PA y PP)', u: null, f: 'Citada en el CPUA' }
 ];
 function SaltaOrdenanzas() {
-  return <Card title="Normativa urbana de Salta capital" src="Enlaces oficiales">
-    <ul className="refs" style={{ marginTop: 4 }}>{SALTA_ORDS.map(function (o) {
-      return <li key={o.k}><b>{o.n}</b> · {o.t} · {o.u ? <a href={o.u} target="_blank" rel="noopener">texto ↗</a> : <span className="muted">sin enlace</span>} <span className="muted small">· Fuente: {o.f}</span></li>;
-    })}</ul>
-    <p className="small" style={{ marginTop: 8 }}>Mapa oficial: <a href="http://idemsa.municipalidadsalta.gob.ar/map_planificacion.html" target="_blank" rel="noopener">IDEMSa · Planificación ↗</a></p>
-  </Card>;
+  return <div>
+    <ol className="ords">{SALTA_ORDS.map(function (o) {
+      return <li key={o.k}>
+        <b className="n">{o.n}</b>
+        <span className="t">{o.t}<span className="f">{o.f}</span></span>
+        {o.u ? <a className="btn" href={o.u} target="_blank" rel="noopener">{o.k === 'planos' ? 'Abrir carpeta' : 'Abrir texto'}</a> : <span className="sinlink">Sin enlace publicado</span>}
+      </li>;
+    })}</ol>
+    <p className="small" style={{ marginTop: 16 }}>Mapa oficial de planificación: <a href="http://idemsa.municipalidadsalta.gob.ar/map_planificacion.html" target="_blank" rel="noopener">IDEMSa</a></p>
+  </div>;
 }
 function cpuaClave(d) { return S_(d).toUpperCase().replace(/\s+/g, ' ').replace(/^(RM|CC|AC)\s?(\d).*$/, '$1$2'); }
 function cpuaSinTabla(d) {
@@ -1618,6 +1835,23 @@ function Corte({ r, N, L }) {
 }
 
 /* ═══════ Tarjetas ═══════ */
+/* Rótulo de la ficha: como el rótulo de una lámina de obra, resume el lote en una línea de casilleros */
+function RotuloLote({ M, res, onCabida }) {
+  const pp = M.pp, S = M.det && M.det.S;
+  const nom = pp ? nomCorta(pp) : 'Sin parcela catastral';
+  const sub = pp ? (M.D.dibujado ? 'Dibujado en el mapa' : pp.Nomenclatura ? (provDe(M.city) === 'cordoba' && !pp._fuente ? 'Prov. ' + pp.Nomenclatura : String(pp.Nomenclatura)) : (pp.Nro_Cuenta ? 'Cuenta ' + pp.Nro_Cuenta : '')) : M.D.lat.toFixed(5) + ', ' + M.D.lon.toFixed(5);
+  const zona = (res && res.zona) || (M.normas[0] && M.normas[0].etiqueta) || 'Sin zona';
+  return <section className="rotulo-lote" aria-label="Resumen del lote">
+    <div className="rc rc-lote"><span>Lote</span><b><i className="sw" aria-hidden="true" />{nom}</b><small>{sub}</small></div>
+    <div className="rc"><span>{M.city.cpua ? 'Distrito' : 'Zona'}</span><b>{zona.replace(/^(Zona|Distrito)\s+/, '')}</b><small>{nombreCiudad(M.city)}</small></div>
+    <div className="rc"><span>Superficie</span><b>{S ? nf(S) + ' m²' : '—'}</b><small>{M.D.dibujado ? 'del dibujo' : pp && E.num(pp.Superficie_Tierra_Urbana) ? 'catastral' : S ? 'del polígono' : 'sin dato'}</small></div>
+    <button className="rc rc-cab" onClick={onCabida} title="Ver el cálculo de la cabida">
+      <span>Cabida máxima</span>
+      {res && res.total != null ? <b className="num">{nf(res.total)}<em> m²</em></b> : <b className="num sin">—</b>}
+      <small>{res && res.total != null ? res.lim : (res && res.lim) ? 'Faltan datos para calcular' : 'Calculando…'}</small>
+    </button>
+  </section>;
+}
 function Card({ title, src, hero, children, right }) {
   return <section className={'card' + (hero ? ' hero' : '')}><div className="card-h"><span>{title}</span>{right || (src ? <span className="src">{src}</span> : null)}</div><div className="card-b">{children}</div></section>;
 }
@@ -1685,7 +1919,7 @@ function LoteCard({ M, lote, onDraw }) {
 
 const HP_DEF = 3.5;
 const DEF = { hp: '', minD: 4, leExtra: 0 };
-function CabidaCard({ M, normaSel, setNormaSel, preset }) {
+function CabidaCard({ M, normaSel, setNormaSel, preset, onResult }) {
   const det = M.det;
   const normas = M.normas.filter(function (n) { return !n.noCalc; });
   const N0 = normaSel != null && M.normas[normaSel] ? M.normas[normaSel] : (normas[0] || M.normas[0] || null);
@@ -1727,6 +1961,8 @@ function CabidaCard({ M, normaSel, setNormaSel, preset }) {
   };
   const used = r && r.rows ? r.rows.filter(function (x) { return x.area > 1e-6; }) : [];
   const limTxt = !r || r.error ? '' : r.limit === 'FOT' ? 'Limita el FOT' : r.limit === 'FOS' ? 'Limita el FOS' : r.limit === 'Retiros' ? 'Limitan los retiros' : 'Limita el perfil';
+  // El rótulo de la ficha muestra el mismo resultado que esta tarjeta
+  useEffect(function () { if (onResult) onResult(r && !r.error ? { total: r.total, lim: limTxt, zona: N ? N.etiqueta : '' } : { total: null, lim: r && r.error ? r.error : '', zona: N ? N.etiqueta : '' }); }, [r && r.total, limTxt, N && N.etiqueta, M.D.t]);
   return (
     <Card title="Cabida máxima" src={M.local ? (N0 && N0.meta && N0.meta.cpua ? 'Indicadores de la ficha del CPUA, editables' : N0 && !N0.noCalc && !N0.meta.nu ? 'Parámetros del plano municipal, editables' : N0 && !N0.noCalc ? 'Parámetros de la capa provincial, editables' : 'Parámetros cargados a mano') : 'Cálculo con parámetros de la capa oficial'} hero>
       {M.normas.length > 1 && <label className="fld" style={{ marginBottom: 10 }}>
@@ -2335,11 +2571,11 @@ function MapView({ onPick, M, overlay, active, focus, city, draw, drawPts, onDra
     if (!M) return;
     const D = M.D;
     L.circleMarker([D.lat, D.lon], { radius: 4, color: '#FB7520', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(g);
-    if (M.mz) L.geoJSON(M.mz.geometry, { style: { color: '#5a6178', weight: 1.2, dashArray: '4 4', fill: false } }).addTo(g);
+    if (M.mz) L.geoJSON(M.mz.geometry, { style: { color: '#28283D', weight: 1.2, opacity: 0.7, dashArray: '4 4', fill: false } }).addTo(g);
     if (M.parcel) {
       const lay = L.geoJSON(M.parcel.geometry, { style: { color: '#FB7520', weight: 2.5, fillColor: '#FB7520', fillOpacity: 0.15 } }).addTo(g);
       if (M.geo) {
-        M.geo.frentes.forEach(function (fr) { fr.edgesLL.forEach(function (e) { L.polyline([[e[0][1], e[0][0]], [e[1][1], e[1][0]]], { color: '#9B08BF', weight: 5, opacity: 0.9 }).addTo(g); }); });
+        M.geo.frentes.forEach(function (fr) { fr.edgesLL.forEach(function (e) { L.polyline([[e[0][1], e[0][0]], [e[1][1], e[1][0]]], { color: '#28283D', weight: 5, opacity: 0.9 }).addTo(g); }); });
         if (M.geo.rayLL) L.polyline([[M.geo.rayLL[0][1], M.geo.rayLL[0][0]], [M.geo.rayLL[1][1], M.geo.rayLL[1][0]]], { color: '#1a1f2e', weight: 1.5, dashArray: '3 3' }).bindTooltip('calle ≈ ' + nf(M.geo.anchoCalle, 1) + ' m', { permanent: true, className: 'calle', direction: 'center' }).addTo(g);
       }
       if (!M.noFit) map.fitBounds(lay.getBounds(), { maxZoom: 19, padding: [60, 60] });
@@ -2837,26 +3073,31 @@ const CIUDADES_APP = [CORDOBA, SALTA_CAP];
 const nombreCiudad = function (c) { return !c ? '' : c.id === 'cordoba' ? 'Córdoba capital' : c.nombre; };
 function CityPick({ onPick, onCancel, actual }) {
   const info = {
-    cordoba: { d: 'Ord. 8256 (ocupación), 8133 y 13131 (uso), 8060 (fraccionamiento), patrimonio, convenios urbanísticos y digesto municipal.', f: 'IDECOR · Municipalidad de Córdoba' },
-    'salta:capital': { d: 'CPUA II 2025 (Ord. 16.486): distrito, ficha de indicadores, PRAC, PIU y clasificación del suelo.', f: 'IDESA · IDEMSa' }
+    cordoba: { cod: 'C', d: 'Ocupación (Ord. 8256), uso (8133 y 13131) y fraccionamiento (8060) del suelo, patrimonio, convenios urbanísticos y digesto municipal.', f: 'Datos de IDECOR y la Municipalidad de Córdoba' },
+    'salta:capital': { cod: 'S', d: 'Código de Planeamiento Urbano Ambiental II (Ord. 16.486): distrito, ficha de indicadores, PRAC, PIU y clasificación del suelo.', f: 'Datos de IDESA e IDEMSa' }
   };
   return <div className="city-page"><div className="city-in">
-    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-      <div>
-        <h1>¿En qué ciudad está el lote?</h1>
-        <p className="small muted">Cada ciudad tiene su propio código urbano y sus propias fuentes oficiales. La elección queda guardada en este navegador.</p>
-      </div>
-      {onCancel && <button className="btn" onClick={onCancel}>Volver a {nombreCiudad(actual) || 'la ciudad anterior'}</button>}
-    </div>
-    <div className="city-grid" style={{ marginTop: 18, gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))' }}>
-      {CIUDADES_APP.map(function (c) {
-        const i = info[c.id];
-        return <button key={c.id} className="city-btn big" onClick={function () { onPick(c); }}>
-          <b style={{ fontSize: 16 }}>{nombreCiudad(c)}</b>
-          <span style={{ whiteSpace: 'normal' }}>{i.d}</span>
-          <span>Datos: {i.f}</span>
-        </button>;
-      })}
+    <header className="eci-barra"><div className="eci-barra-in">
+      <a className="eci-mark" href="/" aria-label="Grupo ECIPSA: todas las herramientas"><span className="g">GRUPO</span><span className="e"><b>E</b>CIPSA</span></a>
+      <span className="ruta-h" style={{ paddingLeft: 16, borderLeft: '1px solid var(--b0)' }}>Análisis de Cabida</span>
+    </div></header>
+    <div className="city-hoja">
+      <h1>¿En qué ciudad está el lote?</h1>
+      <p className="bajada">Cada ciudad tiene su propio código urbano y sus fuentes oficiales. La elección queda guardada en este navegador.</p>
+      <ol className="indice">
+        {CIUDADES_APP.map(function (c) {
+          const i = info[c.id], act = actual && actual.id === c.id;
+          return <li key={c.id} className={'lamina' + (act ? ' activa' : '')}>
+            <button onClick={function () { onPick(c); }}>
+              <span className="cod" aria-hidden="true">{i.cod}</span>
+              <span className="tit">{nombreCiudad(c)}</span>
+              <span className="desc">{i.d}<span className="det">{i.f}</span></span>
+              <span className="abrir">{act ? 'Seguir acá' : 'Elegir'}</span>
+            </button>
+          </li>;
+        })}
+      </ol>
+      {onCancel && <button className="btn" style={{ marginTop: 24 }} onClick={onCancel}>Volver a {nombreCiudad(actual)}</button>}
     </div>
   </div></div>;
 }
@@ -3501,6 +3742,7 @@ function App() {
   const [saved, setSaved] = useState(loadSaved);
   const [toast, setToast] = useState('');
   const [retry, setRetry] = useState(null);
+  const [res, setRes] = useState(null);
   const [draw, setDraw] = useState(false);
   const [drawPts, setDrawPts] = useState([]);
   const reqId = useRef(0);
@@ -3579,7 +3821,7 @@ function App() {
 
   const pick = useCallback(async function (lat, lon, noFit, geomDibujada) {
     const id = ++reqId.current;
-    setBusy(true); setErr(null); setRetry(null); setOpts(null); setDraw(false); setDrawPts([]); setTab(function (t) { return t === 'cartera' || t === 'ord' ? 'lote' : t; });
+    setBusy(true); setErr(null); setRetry(null); setRes(null); setOpts(null); setDraw(false); setDrawPts([]); setTab(function (t) { return t === 'cartera' || t === 'ord' ? 'lote' : t; });
     try {
       const D = await consultar(lat, lon, cityRef.current);
       if (id !== reqId.current) return;
@@ -3663,26 +3905,25 @@ function App() {
   }
 
   return <DigCtx.Provider value={dg}>
-    <div className="hdr">
-      <a href="./" className="logo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="4" y="2" width="16" height="20" rx="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01" /></svg>
-        Análisis de Cabida
-      </a>
-      <span className="hdr-sep" style={{ color: 'var(--b0)' }}>|</span>
-      <span className="hdr-title">Normativa y Cabida</span>
-      <button className="city-chip" onClick={function () { setElegir(true); }} title="Cambiar de ciudad"><span className={'niv niv-' + city.nivel} style={{ padding: '0 5px' }}>N{city.nivel}</span>{nombreCiudad(city)}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg></button>
-      <div className="seg" style={{ marginLeft: 8 }}>
-        <button className={tab === 'lote' ? 'on' : ''} onClick={function () { setTab('lote'); }}>Lote</button>
-        <button className={tab === 'norma' ? 'on' : ''} onClick={function () { setTab('norma'); }}>Normativa</button>
-        <button className={tab === 'cabida' ? 'on' : ''} onClick={function () { setTab('cabida'); }}>Cabida</button>
-        <button className={tab === 'ord' ? 'on' : ''} onClick={function () { setTab('ord'); }}>Ordenanzas</button>
-        <button className={tab === 'cartera' ? 'on' : ''} onClick={function () { setTab('cartera'); }}>Cartera{carteraVis && carteraVis.length ? ' · ' + carteraVis.length : ''}</button>
+    <header className="hdr">
+      <a className="eci-mark" href="/" aria-label="Grupo ECIPSA: todas las herramientas"><span className="g">GRUPO</span><span className="e"><b>E</b>CIPSA</span></a>
+      <div className="ruta">
+        <span className="ruta-h">Análisis de Cabida</span>
+        <button className="city-chip" onClick={function () { setElegir(true); }} title="Cambiar de ciudad">{nombreCiudad(city)}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
       </div>
+      <nav className="seg" aria-label="Secciones">
+        {[['lote', 'Lote'], ['norma', 'Normativa'], ['cabida', 'Cabida'], ['ord', 'Ordenanzas'], ['cartera', 'Cartera']].map(function (x) {
+          return <button key={x[0]} className={tab === x[0] ? 'on' : ''} aria-current={tab === x[0] ? 'page' : undefined} onClick={function () { setTab(x[0]); }}>{x[1]}{x[0] === 'cartera' && carteraVis && carteraVis.length ? <span className="cnt">{carteraVis.length}</span> : null}</button>;
+        })}
+      </nav>
       <div className="acts">
         {sess && <UserMenu sess={sess} onSalir={salir} />}
-        <button className="btn-i" onClick={togTheme} title="Cambiar tema">{theme === 'light' ? '🌙' : '☀️'}</button>
+        <button className="btn-i" onClick={togTheme} title={theme === 'light' ? 'Pasar a modo oscuro' : 'Pasar a modo claro'} aria-label="Cambiar tema">
+          {theme === 'light' ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>}
+        </button>
       </div>
-    </div>
+    </header>
 
     <div style={{ display: mapTab ? 'contents' : 'none' }}>
       <form className="sbar" onSubmit={doSearch}>
@@ -3729,11 +3970,12 @@ function App() {
           {M && !busy && <Fragment>
             <div className="print-only" style={{ marginBottom: 10 }}><b>Análisis de Cabida · {M.city.nombre}</b> · {new Date().toLocaleDateString('es-AR')}</div>
             <div className="no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
-              <button className="btn pri" onClick={copy}>Copiar resumen</button>
+              <button className="btn" onClick={copy}>Copiar resumen</button>
               <button className="btn" onClick={function () { window.print(); }}>Imprimir / PDF</button>
               {!M.local && <a className="btn" href={MAPA311} target="_blank" rel="noopener">Ver en MapasCórdoba ↗</a>}
               {toast && <span className="small" style={{ color: 'var(--ok)', fontWeight: 700 }}>{toast}</span>}
             </div>
+            <RotuloLote M={M} res={res} onCabida={function () { setTab('cabida'); }} />
             {/* Las tres pestañas comparten el mapa; se ocultan con CSS para no perder lo editado en la cabida */}
             <div className="tabgrp" style={vis('lote')}>
               <LoteCard M={M} lote={loteActual} onDraw={empezarDibujo} />
@@ -3752,7 +3994,7 @@ function App() {
               </Fragment>}
             </div>
             <div className="tabgrp" style={vis('cabida')}>
-              <CabidaCard M={M} normaSel={normaSel} setNormaSel={setNormaSel} preset={preset} />
+              <CabidaCard M={M} normaSel={normaSel} setNormaSel={setNormaSel} preset={preset} onResult={setRes} />
             </div>
             {M.local ? <p className="small muted">Fuente: {fuenteTxt(M.city)}, consultados el {new Date(M.D.t).toLocaleString('es-AR')}. Herramienta de consulta: no reemplaza la visación ni el certificado de uso del suelo de {M.city.nombre}.</p> : <p className="small muted">Fuente: capas WFS de IDECOR (Infraestructura de Datos Espaciales de la Provincia de Córdoba) con información de la Dirección de Planeamiento Urbano municipal y Catastro provincial, consultadas el {new Date(M.D.t).toLocaleString('es-AR')}. Herramienta de consulta: no reemplaza la visación ni el certificado de uso del suelo.</p>}
           </Fragment>}
@@ -3761,7 +4003,7 @@ function App() {
     </div>
 
     {tab === 'ord' && local && <div className="page"><div className="page-in">
-      <h1 className="title-lote" style={{ fontSize: 20 }}>Normativa urbana · {city.cpua ? nombreCiudad(city) : provInfo(provDe(city)).nombre}</h1>
+      <h1 className="title-lote" style={{ fontSize: 20 }}>Normativa urbana de {city.cpua ? nombreCiudad(city) : provInfo(provDe(city)).nombre}</h1>
       <p className="sub" style={{ marginBottom: 14 }}>{city.cpua ? 'Código urbano, código de edificación y ordenanzas especiales que se usan en la ficha, con su enlace oficial y quién lo publica.' : 'Planos y ordenanzas de uso, ocupación y fraccionamiento del suelo, con enlace al texto oficial. ' + city.nombre + ' aparece primero.'}</p>
       {city.cpua ? <SaltaOrdenanzas /> : <DirectorioMuni prov={provDe(city)} actual={city} />}
     </div></div>}
